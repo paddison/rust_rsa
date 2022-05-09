@@ -1,6 +1,7 @@
 pub mod helpers;
 pub mod prime_module;
 pub mod rsa_module;
+pub mod input_module;
 
 #[cfg(test)]
 pub mod tests {

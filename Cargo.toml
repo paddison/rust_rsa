@@ -9,6 +9,6 @@ edition = "2021"
 rand = "0.8"
 
 [dependencies.rug]
-version = "1.14"
+version = "1.16"
 default-features = false
 features = ["integer", "rand"]
