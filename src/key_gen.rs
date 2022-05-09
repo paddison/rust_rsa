@@ -4,7 +4,7 @@ use rug::rand::RandState;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use rand;
-use std::thread;
+use std::{thread, time};
 use crate::helpers::{gcd, find_inverse, pow_mod};
 use crate::prime_gen::is_prime;
 use crate::prime_gen::sieve_of_eratosthenes::Sieve;
@@ -12,7 +12,6 @@ use crate::prime_gen::sieve_of_eratosthenes::Sieve;
 struct SendInteger {
     n: Integer,
 }
-
 
 unsafe impl Sync for SendInteger {}
 unsafe impl Send for SendInteger {}
@@ -91,6 +90,15 @@ pub fn decrypt_cypher(c: &Integer, d: &Integer, n: &Integer) -> Integer {
 
 #[test]
 fn test_generate_p_q_threads() {
-    let (p, q) = generate_p_q(4096, 8);
-    println!("p: {}\n\nq: {}", p, q);
+    for _ in 0..10 {
+        let start = time::Instant::now();
+        let (p, q) = generate_p_q(4096, 6);
+        println!("Created 4k bit key pair in {}, with 6 threads", start.elapsed().as_millis());
+    }
+    for _ in 0..10 {
+        let start = time::Instant::now();
+        let (p, q) = generate_p_q(4096, 8);
+        println!("Created 4k bit key pair in {}, with 8 threads", start.elapsed().as_millis());
+    }
+    // println!("p: {}\n\nq: {}", p, q);
 }
