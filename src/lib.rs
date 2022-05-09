@@ -1,6 +1,7 @@
+pub mod benchmark;
 pub mod helpers;
-pub mod prime_module;
-pub mod rsa_module;
+pub mod key_gen;
+pub mod prime_gen;
 pub mod input_module;
 
 #[cfg(test)]
@@ -19,7 +20,7 @@ pub mod tests {
 
     pub mod rsa_module_tests {
         use rug::Integer;
-        use crate::rsa_module::generate_e;
+        use crate::key_gen::generate_e;
         use crate::helpers::gcd;
 
         #[test]

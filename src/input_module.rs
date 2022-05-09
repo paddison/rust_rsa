@@ -1,5 +1,4 @@
 use std::string::FromUtf8Error;
-
 use rug::Integer;
 
 pub fn string_to_number(input: String) -> Integer {
@@ -30,6 +29,7 @@ pub fn number_to_string(n: Integer) -> Result<String, FromUtf8Error>  {
         }
     }
 
+    // remove trailing zeroes on end of string
     Ok(raw_string.trim_end_matches(char::from(0)).to_string())
 }
 
