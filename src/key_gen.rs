@@ -9,6 +9,13 @@ use crate::helpers::{gcd, find_inverse, pow_mod};
 use crate::prime_gen::is_prime;
 use crate::prime_gen::sieve_of_eratosthenes::Sieve;
 
+struct RsaPrivateKey {
+    d: Integer,
+    n: Integer,
+}
+
+/// Wrapper for Integer, to share it between threads.
+/// These will always be immutable, so it is safe to share them
 struct SendInteger {
     n: Integer,
 }

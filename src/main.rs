@@ -1,6 +1,7 @@
 use rug::Integer;
 use std::env;
 use rsa_arbitray_precision::benchmark as bm;
+use num_cpus;
 
 // TODO add command line options
 fn main() {
@@ -9,16 +10,20 @@ fn main() {
     // // let c = rsa_module::encrypt_msg(&msg, &e, &n);
     // // let decyphered = rsa_module::decrypt_cypher(&c, &d, &n);
     // // println!("  msg: {}\n cyph: {}\ndecyp: {}", msg, c.to_string_radix(16), decyphered);
-    bm::benchmark_threads(20, 4, 3);
+    // bm::benchmark_threads(20, 4, 3);
     let args: Vec<String> = env::args().collect();
-    match args[1].as_str() {
-        "benchmark" => do_benchmark(&args[2..]),
-        "generate" => do_generate(&args[2..]),
-        "encrypt" => do_encrypt(&args[2..]),
-        "decrypt" => do_decrypt(&args[2..]),
-        "help" => print_help(),
-        _ => print_usage(),
-    };
+    if let Some(cmd) = args.get(1) {
+        match cmd.as_str() {
+            "benchmark" => do_benchmark(&args[2..]),
+            "generate" => do_generate(&args[2..]),
+            "encrypt" => do_encrypt(&args[2..]),
+            "decrypt" => do_decrypt(&args[2..]),
+            "help" => print_help(),
+            _ => print_usage(),
+        };
+    }
+
+    println!("{}", num_cpus::get_physical());
 }
 
 
