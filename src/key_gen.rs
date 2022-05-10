@@ -9,9 +9,42 @@ use crate::helpers::{gcd, find_inverse, pow_mod};
 use crate::prime_gen::is_prime;
 use crate::prime_gen::sieve_of_eratosthenes::Sieve;
 
-struct RsaPrivateKey {
+
+trait RsaKey {
+    fn from_file(file_name: String) -> Self;
+    fn write_to_file(&self, file_name: String);
+}
+
+pub struct RsaPrivateKey {
     d: Integer,
     n: Integer,
+}
+
+pub struct RsaPublicKey {
+    e: Integer,
+    n: Integer,
+}
+
+impl RsaKey for RsaPrivateKey {
+    fn write_to_file(&self, file_name: String) {
+        let ptr = self.d.as_raw();
+        let mut raw_string = String::new();
+    
+        // SAFETY: Accessing the pointer is safe, since n will be a valid integer,
+        // and the pointer only accesses memory in mpz.size, which must be valid
+        unsafe {
+            let mpz = *ptr;
+            for i in 0..mpz.size {
+                let part = *mpz.d.as_ptr().add(i as usize);
+                raw_string += &String::from_utf8(part.to_le_bytes().to_vec()).unwrap();
+            }
+        }
+    
+    }
+
+    fn from_file(file_name: String) -> Self {
+        RsaPrivateKey { d: Integer::from(1), n: Integer::from(2) }
+    }
 }
 
 /// Wrapper for Integer, to share it between threads.
@@ -58,6 +91,7 @@ pub fn generate_p_q(bits: u32, n_threads: u8) -> (Integer, Integer) {
     (p, q)
 }
 
+#[inline(always)]
 pub fn calculate_n_phi(p: &Integer, q: &Integer) -> Integer {
     Integer::from(Integer::from(p - 1) * Integer::from(q - 1))
 }
@@ -77,22 +111,21 @@ pub fn generate_d(e: &Integer, n_phi: &Integer) -> Integer {
     find_inverse(e, n_phi)
 }
 
-pub fn generate_key_pair(bits: u32, n_threads: u8) -> (Integer, Integer, Integer)  {
+pub fn generate_key_pair(bits: u32, n_threads: u8) -> (RsaPrivateKey, RsaPublicKey)  {
     let (p, q) = generate_p_q(bits, n_threads);
     let n = Integer::from(&p * &q);
     let n_phi = calculate_n_phi(&p, &q);
-
     let e = generate_e(&n_phi);
     let d = generate_d(&e, &n_phi);
-    (d, n, e)
+    (RsaPrivateKey { d, n: Integer::from(&n) }, RsaPublicKey { e, n })
 }
 
-pub fn encrypt_msg(msg: &Integer, e: &Integer, n: &Integer) -> Integer {
-    pow_mod(msg, e, n)
+pub fn encrypt_msg(msg: &Integer, RsaPublicKey { e, n }: RsaPublicKey) -> Integer {
+    pow_mod(msg, &e, &n)
 }
 
-pub fn decrypt_cypher(c: &Integer, d: &Integer, n: &Integer) -> Integer {
-    pow_mod(c, d, n)
+pub fn decrypt_cypher(c: &Integer, RsaPrivateKey { d, n }: RsaPrivateKey) -> Integer {
+    pow_mod(c, &d, &n)
 }
 
 #[test]
@@ -107,5 +140,4 @@ fn test_generate_p_q_threads() {
         let (p, q) = generate_p_q(4096, 8);
         println!("Created 4k bit key pair in {}, with 8 threads", start.elapsed().as_millis());
     }
-    // println!("p: {}\n\nq: {}", p, q);
 }

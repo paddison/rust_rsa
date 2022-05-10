@@ -27,7 +27,7 @@ pub fn benchmark_threads(repeats: u16, thread_range: u8, bit_range: u8) {
 
 fn benchmark_generate_key_pair(bits: u32, n_threads: u8) -> u128 {
     let start = time::Instant::now();
-    let (_, _, _) = key_gen::generate_key_pair(bits, n_threads);
+    let (_, _) = key_gen::generate_key_pair(bits, n_threads);
     println!("Created {} bit key pair in {}, with {} threads", bits, start.elapsed().as_millis(), n_threads);
     start.elapsed().as_millis()
 }
