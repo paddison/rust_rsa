@@ -23,7 +23,7 @@ fn main() {
         };
     }
 
-    println!("{}", num_cpus::get_physical());
+    println!("{:x}", 255);
 }
 
 

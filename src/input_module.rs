@@ -14,7 +14,6 @@ pub fn string_to_number(input: String) -> Integer {
 
 }
 
-
 pub fn number_to_string(n: Integer) -> Result<String, FromUtf8Error>  {
     let ptr = n.as_raw();
     let mut raw_string = String::new();
