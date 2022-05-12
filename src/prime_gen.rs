@@ -5,7 +5,7 @@ use self::sieve_of_eratosthenes::Sieve;
 
 pub fn is_prime(n: &Integer, sieve: &Sieve) -> bool {
 
-    if !sieve.is_prime_candidate(&n) { return false };
+    if !n.get_bit(0) || !sieve.is_prime_candidate(&n) { return false };
 
     let (s, d) = get_factors(n);
 
