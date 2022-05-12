@@ -12,11 +12,19 @@ use crate::helpers::{gcd, find_inverse, pow_mod};
 use crate::prime_gen::is_prime;
 use crate::prime_gen::sieve_of_eratosthenes::Sieve;
 
-const SEPARATOR: &str = "=======";
+const SEPARATOR: &str = "\n=======\n";
 
 trait RsaKey {
-    fn from_file(file_name: String) -> std::io::Result<RsaPrivateKey>;
-    fn get_parts(&self) -> (&Integer, &Integer);
+    fn from_file(file_name: String) -> std::io::Result<Self> where Self: Sized {
+        let mut buffer = String::new();
+        let _ = File::open(file_name)?.read_to_string(&mut buffer)?;
+        let key = Self::deserialize(buffer);
+        match key {
+            Ok(k) => Ok(k),
+            Err(e) => Err(std::io::Error::new(ErrorKind::Other, e.to_string())),
+        }
+    }
+    fn get_parts(&self) -> Vec<&Integer>;
     fn deserialize(key: String) -> Result<Self, ParseIntegerError> where Self: Sized;
     fn write_to_file(&self, file_name: String) -> std::io::Result<()> {
         let s = self.serialize();
@@ -24,15 +32,7 @@ trait RsaKey {
         file.write_all(&s.as_bytes())?;
         Ok(())
     }
-    fn serialize(&self) -> String {
-        let (key_part, n) = self.get_parts();
-        let mut s0 = Self::into_hex(key_part);
-        let s1 = Self::into_hex(n);
-       
-        s0 += &("\n".to_owned() + &(SEPARATOR.to_owned() + "\n"));
-        s0 += s1.as_ref();
-        s0
-    }
+    fn serialize(&self) -> String;
     fn into_hex(n: &Integer ) -> String {
         let n_ptr = n.as_raw();
         let mut raw_string = String::new();
@@ -59,6 +59,7 @@ trait RsaKey {
 pub struct RsaPrivateKey {
     d: Integer,
     n: Integer,
+    public_key_part: Integer,
 }
 
 impl RsaPrivateKey {
@@ -69,38 +70,77 @@ impl RsaPrivateKey {
         let e = generate_e(&n_phi);
         let d = generate_d(&e, &n_phi);
         let n = Integer::from(&p * &q);
-        RsaPrivateKey { d, n }
+        RsaPrivateKey { d, n , public_key_part: e }
     }
 }
 
 impl RsaKey for RsaPrivateKey {
 
-    fn from_file(file_name: String) -> std::io::Result<RsaPrivateKey> {
-        let mut buffer = String::new();
-        let _ = File::open(file_name)?.read_to_string(&mut buffer)?;
-        let key = RsaPrivateKey::deserialize(buffer);
-        match key {
-            Ok(k) => Ok(k),
-            Err(e) => Err(std::io::Error::new(ErrorKind::Other, e.to_string())),
-        }
-    }
-
     #[inline(always)]
-    fn get_parts(&self) -> (&Integer, &Integer) {
-        (&self.d, &self.n)
+    fn get_parts(&self) -> Vec<&Integer> {
+        let mut parts = vec![];
+        parts.push(&self.d);
+        parts.push(&self.n);
+        parts.push(&self.public_key_part);
+        parts
     }
 
     fn deserialize(key: String) -> Result<Self, ParseIntegerError> {
         let parts: Vec<&str> = key.split(SEPARATOR).collect();
         let d = Integer::parse_radix(parts[0], 16)?.complete();
         let n = Integer::parse_radix(parts[1], 16)?.complete();
-        Ok(RsaPrivateKey { d, n })
+        let public_key_part = Integer::parse_radix(parts[2], 16)?.complete();
+        Ok(RsaPrivateKey { d, n, public_key_part })
+    }
+
+    fn serialize(&self) -> String {
+        let parts = self.get_parts();
+        assert_eq!(parts.len(), 3);
+        let mut buffer = String::new();
+
+        buffer += &RsaPrivateKey::into_hex(parts[0]); 
+        buffer += SEPARATOR;
+        buffer += &RsaPrivateKey::into_hex(parts[1]); 
+        buffer += SEPARATOR;
+        buffer += &RsaPrivateKey::into_hex(parts[2]);
+
+        buffer
     }
 }
 
 pub struct RsaPublicKey {
     e: Integer,
     n: Integer,
+}
+
+impl RsaKey for RsaPublicKey {
+
+    fn get_parts(&self) -> Vec<&Integer> {
+        let mut parts = vec![];
+        parts[0] = &self.e;
+        parts[1] = &self.n;
+
+        parts
+    }
+
+    fn deserialize(key: String) -> Result<Self, ParseIntegerError> where Self: Sized {
+        let parts: Vec<&str> = key.split(SEPARATOR).collect();
+        let e = Integer::from_str_radix(parts[0], 16)?;
+        let n = Integer::from_str_radix(parts[1], 16)?;
+
+        Ok(RsaPublicKey { e, n })
+    }
+
+    fn serialize(&self) -> String {
+        let parts = self.get_parts();
+        assert_eq!(parts.len(), 2);
+        let mut buffer = String::new();
+        buffer += &RsaPublicKey::into_hex(parts[0]);
+        buffer += SEPARATOR;
+        buffer += &RsaPublicKey::into_hex(parts[1]);
+
+        buffer
+    }
 }
 
 /// Wrapper for Integer, to share it between threads.
@@ -173,14 +213,14 @@ pub fn generate_key_pair(bits: u32, n_threads: usize) -> (RsaPrivateKey, RsaPubl
     let n_phi = calculate_n_phi(&p, &q);
     let e = generate_e(&n_phi);
     let d = generate_d(&e, &n_phi);
-    (RsaPrivateKey { d, n: Integer::from(&n) }, RsaPublicKey { e, n })
+    (RsaPrivateKey { d, n: Integer::from(&n), public_key_part: Integer::from(&e) }, RsaPublicKey { e, n })
 }
 
-pub fn encrypt_msg(msg: &Integer, RsaPublicKey { e, n }: RsaPublicKey) -> Integer {
+pub fn encrypt_msg(msg: &Integer, RsaPublicKey { e, n, ..}: RsaPublicKey) -> Integer {
     pow_mod(msg, &e, &n)
 }
 
-pub fn decrypt_cypher(c: &Integer, RsaPrivateKey { d, n }: RsaPrivateKey) -> Integer {
+pub fn decrypt_cypher(c: &Integer, RsaPrivateKey { d, n, .. }: RsaPrivateKey) -> Integer {
     pow_mod(c, &d, &n)
 }
 
@@ -202,7 +242,7 @@ fn test_generate_p_q_threads() {
 
 #[test]
 fn test_serialize() {
-    let key = RsaPrivateKey::new(4096);
+    let key = RsaPrivateKey::new(512);
     let serialized_key = key.serialize();
     let deserialized_key = RsaPrivateKey::deserialize(serialized_key);
     assert!(deserialized_key.is_ok());
