@@ -39,7 +39,6 @@ trait RsaKey {
     
         // SAFETY: Accessing the pointer is safe, since n will be a valid integer,
         // and the pointer only accesses memory in mpz.size, which must be valid
-        
         unsafe {
             let mpz = *n_ptr;
             // we need to go backwarts, since the limbs(64 bit) of the number are stored in reverse order apparently
@@ -230,19 +229,19 @@ fn test_generate_p_q_threads() {
 
     for _ in 0..10 {
         let start = time::Instant::now();
-        let (_, _) = generate_p_q(4096, 6);
+        let (_, _) = generate_p_q(2048, 6);
         println!("Created 4k bit key pair in {}, with 6 threads", start.elapsed().as_millis());
     }
     for _ in 0..10 {
         let start = time::Instant::now();
-        let (_, _) = generate_p_q(4096, 8);
+        let (_, _) = generate_p_q(2048, 8);
         println!("Created 4k bit key pair in {}, with 8 threads", start.elapsed().as_millis());
     }
 }
 
 #[test]
 fn test_serialize() {
-    let key = RsaPrivateKey::new(512);
+    let key = RsaPrivateKey::new(2048);
     let serialized_key = key.serialize();
     let deserialized_key = RsaPrivateKey::deserialize(serialized_key);
     assert!(deserialized_key.is_ok());

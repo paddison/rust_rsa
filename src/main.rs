@@ -23,8 +23,22 @@ fn main() {
     }
 }
 
-
+// benchmark commands:
+// if no flags are specified, it will go from 1k to 4k
+// with n_thread = num_cpus 
+// flags:
+// -b:
+// bitsizes can be specified with -b [1024,2048,...]
+// bitsizes can be entered as a comma separated list of numbers
+// -t:
+// num of threads with -t [t1,t2,t3,...,tn]
+// threads can be entered as a comma separated list of numbers
 // add flag to specify number of threads and bit sizes
+// -f [name]
+// save results to a file 
+// -h
+// show help for this command
+// if [name] is empty, a default name with the date and time is created
 fn do_benchmark(args: &[String]) {
 
 }
