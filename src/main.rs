@@ -3,7 +3,8 @@ use std::env;
 use rsa_arbitray_precision::config;
 
 
-// TODO add command line options
+// TODO maybe implement factory pattern for config 
+// and them handle running the program
 fn main() {
     // let msg = Integer::from(10850);
     // let (d, n, e) = rsa_module::generate_key_pair(4096, 2);
