@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 rand = "0.8"
 num_cpus = "1.0"
+chrono = "0.4.19"
 
 [dependencies.rug]
 version = "1.16"

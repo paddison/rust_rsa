@@ -14,7 +14,7 @@ use crate::prime_gen::sieve_of_eratosthenes::Sieve;
 
 const SEPARATOR: &str = "\n=======\n";
 
-trait RsaKey {
+pub trait RsaKey {
     fn from_file(file_name: String) -> std::io::Result<Self> where Self: Sized {
         let mut buffer = String::new();
         let _ = File::open(file_name)?.read_to_string(&mut buffer)?;

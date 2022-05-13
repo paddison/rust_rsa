@@ -3,6 +3,7 @@ pub mod helpers;
 pub mod key_gen;
 pub mod prime_gen;
 pub mod input_module;
+pub mod config;
 
 #[cfg(test)]
 pub mod tests {

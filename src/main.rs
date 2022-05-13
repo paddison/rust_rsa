@@ -1,11 +1,7 @@
-use rug::Integer;
-use std::{env, collections::HashMap};
-use rsa_arbitray_precision::benchmark as bm;
 
-// Small wrapper to indicate that something is a flag
-struct Flag {
-    value: char,
-}
+use std::env;
+use rsa_arbitray_precision::config;
+
 
 // TODO add command line options
 fn main() {
@@ -46,7 +42,7 @@ fn main() {
 // -h
 // show help for this command
 fn do_benchmark(args: &[String]) {
-
+    let config = config::BenchmarkConfig::new(args);
 }
 
 // Generate a key pair
@@ -105,15 +101,4 @@ fn print_help() {
 // Print short string to show benchmark, help etc. commands
 fn print_usage() {
 
-}
-
-// Returns a map containing all flags that where specified, with their index in args
-fn get_flags() -> HashMap<Flag, usize> {
-
-    HashMap::new()
-}
-
-// checks if the argument is a flag or not (flags will always have the form of "-[a-zA-Z]")
-fn is_flag() -> bool {
-    true
 }
