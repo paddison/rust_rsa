@@ -1,6 +1,11 @@
 use rug::Integer;
-use std::env;
+use std::{env, collections::HashMap};
 use rsa_arbitray_precision::benchmark as bm;
+
+// Small wrapper to indicate that something is a flag
+struct Flag {
+    value: char,
+}
 
 // TODO add command line options
 fn main() {
@@ -24,6 +29,7 @@ fn main() {
 }
 
 // benchmark commands:
+// benchmark [OPTIONS]
 // if no flags are specified, it will go from 1k to 4k
 // with n_thread = num_cpus 
 // flags:
@@ -34,34 +40,80 @@ fn main() {
 // num of threads with -t [t1,t2,t3,...,tn]
 // threads can be entered as a comma separated list of numbers
 // add flag to specify number of threads and bit sizes
-// -f [name]
+// -f [file_name]
 // save results to a file 
+// if [file_name] is empty, a default name with the date and time is created
 // -h
 // show help for this command
-// if [name] is empty, a default name with the date and time is created
 fn do_benchmark(args: &[String]) {
 
 }
 
-// add flag to specify length, and -f if to save to file
+// Generate a key pair
+// generate [OPTIONS]
+// flags:
+// -b [n]
+// specify length n of key in bits, only powers of 2 permitted
+// if empty, generate 2k key
+// -f [file_name]
+// save results to file,
+// if [file_name] is empty, a default name with the date and time is created
+// -h
+// show help for this command
 fn do_generate(args: &[String]) {
 
 }
 
-// add -f flag for file option
+// encrypt a message 
+// encrypt [OPTIONS] key_file message
+// 
+// flags:
+// -f [file_name] 
+// specify if message should be saved to file
+// -p
+// use public key to encrypt (standard option)
+// -s
+// use private key to encrypt
+// -F
+// message comes from file, otherwise will be string
+// -h
+// show help for this command
 fn do_encrypt(args: &[String]) {
 
 }
 
-// add -f flag for store as file option
+// decrypt a message
+// decrypt [options] key_file message
+// flags:
+// -f [file_name] 
+// specify if message should be saved to file
+// -F
+// message comes from file, otherwise will be string
+// -h
+// show help for this command
+//
+// Note: file_header should contain information about the key that was used to encrypt
 fn do_decrypt(args: &[String]) {
 
 }
 
+// Print possible commands
 fn print_help() {
 
 }
 
+// Print short string to show benchmark, help etc. commands
 fn print_usage() {
 
+}
+
+// Returns a map containing all flags that where specified, with their index in args
+fn get_flags() -> HashMap<Flag, usize> {
+
+    HashMap::new()
+}
+
+// checks if the argument is a flag or not (flags will always have the form of "-[a-zA-Z]")
+fn is_flag() -> bool {
+    true
 }
