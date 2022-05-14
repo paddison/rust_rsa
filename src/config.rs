@@ -15,6 +15,7 @@ trait Configuration {
 
     fn parse_file_name(args: &[String]) -> String {
         let mut args_iter = args.iter();
+        args_iter.next();
         if let Some(name) = args_iter.next() {
             String::from(name)
         } else {
@@ -49,6 +50,7 @@ trait Configuration {
 // if [file_name] is empty, a default name with the date and time is created
 // -h
 // show help for this command
+#[derive(Debug)]
 pub struct BenchmarkConfig {
     bit_sizes: Vec<u16>,
     n_threads: Vec<u8>,
@@ -57,15 +59,15 @@ pub struct BenchmarkConfig {
 
 impl BenchmarkConfig {
     pub fn new(args: &[String]) -> Option<Self> {
-        let mut bit_sizes = vec![1024];
+        let mut bit_sizes = vec![2048];
         let mut n_threads = vec![num_cpus::get_physical() as u8];
         let mut file = None;
 
         for (i, arg) in args.iter().enumerate() {
             if is_flag(arg) {
                 match arg.as_str() {
-                    "-b" => bit_sizes = Self::parse_bit_sizes(&args[i..]),
-                    "-t" => n_threads = Self::parse_n_threads(&args[i..]),
+                    "-b" => bit_sizes = Self::parse_bit_sizes(&args[(i + 1)..]),
+                    "-t" => n_threads = Self::parse_n_threads(&args[(i + 1)..]),
                     "-f" => file = Some(Self::parse_file_name(&args[i..])),
                     "-h" => { 
                         Self::print_help(); 
@@ -134,39 +136,98 @@ impl Configuration for BenchmarkConfig {
 // TODO implement many tests
 #[cfg(test)]
 mod benchmark_tests {
+    use chrono::{Datelike, Timelike};
+
     use super::BenchmarkConfig;
 
     #[test]
     fn test_new_invalid() {
-
+        let args = vec!["-b".to_string(), "1024".to_string(), 
+                        "-t".to_string(), "5".to_string(), 
+                        "-g".to_string(), "bla".to_string()];
+        let cfg = BenchmarkConfig::new(&args);
+        assert!(cfg.is_none());
     }
 
     #[test]
     fn test_new_b_valid() {
+        let args = vec!["-b".to_string(), "1024".to_string(), "2048".to_string()];
+        let cfg = BenchmarkConfig::new(&args);
+        assert!(cfg.is_some());
+        let cfg = cfg.unwrap();
+        assert_eq!(cfg.bit_sizes, vec![1024, 2048]);
+        assert_eq!(cfg.n_threads, vec![num_cpus::get_physical() as u8]);
+        assert!(cfg.file.is_none());
 
     }
 
     #[test]
     fn test_new_b_invalid() {
+        let args = vec!["-b".to_string(), "bla".to_string(), "blub".to_string()];
+        let cfg = BenchmarkConfig::new(&args);
+        assert!(cfg.is_some());
+        let cfg = cfg.unwrap();
+        assert_eq!(cfg.bit_sizes, vec![2048]);
+        assert_eq!(cfg.n_threads, vec![num_cpus::get_physical() as u8]);
+        assert!(cfg.file.is_none());
+    }
 
+    #[test]
+    fn test_new_b_one_invalid() {
+        let args = vec!["-b".to_string(), "bla".to_string(), "1024".to_string()];
+        let cfg = BenchmarkConfig::new(&args);
+        assert!(cfg.is_some());
+        let cfg = cfg.unwrap();
+        assert_eq!(cfg.bit_sizes, vec![1024]);
+        assert_eq!(cfg.n_threads, vec![num_cpus::get_physical() as u8]);
+        assert!(cfg.file.is_none());
     }
 
     #[test]
     fn test_new_t_valid() {
-
+        let args = vec!["-t".to_string(), "5".to_string(), "10".to_string()];
+        let cfg = BenchmarkConfig::new(&args);
+        assert!(cfg.is_some());
+        let cfg = cfg.unwrap();
+        assert_eq!(cfg.bit_sizes, vec![2048]);
+        assert_eq!(cfg.n_threads, vec![5, 10]);
+        assert!(cfg.file.is_none());
     }
 
     #[test]
     fn test_new_t_invalid() {
-
+        let args = vec!["-t".to_string(), "bla".to_string(), "blub".to_string()];
+        let cfg = BenchmarkConfig::new(&args);
+        assert!(cfg.is_some());
+        let cfg = cfg.unwrap();
+        assert_eq!(cfg.bit_sizes, vec![2048]);
+        assert_eq!(cfg.n_threads, vec![num_cpus::get_physical() as u8]);
+        assert!(cfg.file.is_none());
     }
     #[test]
-    fn test_new_f_valid() {
-
+    fn test_new_f_with_name() {
+        let args = vec!["-f".to_string(), "my_file".to_string()];
+        let cfg = BenchmarkConfig::new(&args);
+        assert!(cfg.is_some());
+        let cfg = cfg.unwrap();
+        assert_eq!(cfg.bit_sizes, vec![2048]);
+        assert_eq!(cfg.n_threads, vec![num_cpus::get_physical() as u8]);
+        assert!(cfg.file.is_some());
+        assert_eq!(cfg.file.unwrap(), "my_file".to_string());
     }
+
     #[test]
-    fn test_new_f_invalid() {
-    
+    fn test_new_f_without_name() {
+        let args = vec!["-f".to_string()];
+        let cfg = BenchmarkConfig::new(&args);
+        assert!(cfg.is_some());
+        let cfg = cfg.unwrap();
+        assert_eq!(cfg.bit_sizes, vec![2048]);
+        assert_eq!(cfg.n_threads, vec![num_cpus::get_physical() as u8]);
+        assert!(cfg.file.is_some());
+        let now = chrono::Utc::now();
+        let expected = format!("{}-{}-{}T{}:{}", now.day(), now.month(), now.year(), now.hour(), now.minute());
+        assert_eq!(cfg.file.unwrap(), expected);
     }
 }
 
