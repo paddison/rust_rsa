@@ -58,7 +58,7 @@ fn do_benchmark(args: &[String]) {
 // -h
 // show help for this command
 fn do_generate(args: &[String]) {
-
+    let config = config::GenerateConfig::new(args);
 }
 
 // encrypt a message 
@@ -76,7 +76,7 @@ fn do_generate(args: &[String]) {
 // -h
 // show help for this command
 fn do_encrypt(args: &[String]) {
-
+    let config = config::EncryptConfig::new(args);
 }
 
 // decrypt a message

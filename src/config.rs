@@ -1,8 +1,6 @@
-use std::{collections::HashMap, fmt::Display, str::ParseBoolError, fs::File, io::Read};
+use std::{collections::HashMap, fs::File, io::Read};
 use num_cpus;
 use chrono::{self, Datelike, Timelike};
-
-use crate::key_gen::{RsaKey, self};
 
 type Result<T> = std::result::Result<T, ParseCommandError>;
 
@@ -343,19 +341,16 @@ impl Configuration for GenerateConfig {
 // -F
 // message comes from file, otherwise will be string
 // -h
-struct EncryptConfig<Key> 
-where Key: RsaKey
+pub struct EncryptConfig
 {
-    key: Key,
+    key_file: String,
     is_private: bool,
     file: Option<String>,
     message: String,
 }
 
-impl<Key> EncryptConfig<Key> 
-where Key: RsaKey
-{
-    fn new(args: &[String]) -> Result<Self> {
+impl EncryptConfig{
+    pub fn new(args: &[String]) -> Result<Self> {
         if args.len() < 2 {
             return Err(ParseCommandError::from(ErrorType::InvalidArgs("Key_file and message required.".to_string())));
         }
@@ -367,6 +362,7 @@ where Key: RsaKey
                 match arg.as_str() {
                     "-s" => is_private = true,
                     "-F" => message = Self::parse_message(&args[i + 1..])?,
+                    "-f" => file = Some(Self::parse_file_name(&args[i..])),
                     "-h" => {
                         let err_type = ErrorType::HelpFlag(Self::get_help_message());
                         return Err(ParseCommandError::from(err_type));
@@ -384,11 +380,7 @@ where Key: RsaKey
         }
 
         let key_file = args[args.len() - 2].clone();
-
-        match key_gen::RsaKey::from_file(key_file) {
-            Ok(key) => Ok(EncryptConfig { key, is_private, file, message }),
-            Err(e) => return Err(ParseCommandError::from(ErrorType::Other(e.to_string()))),
-        }
+        Ok(EncryptConfig { key_file, is_private, file, message })
     }
 
     fn parse_message(args: &[String]) -> Result<String> {
@@ -417,7 +409,7 @@ where Key: RsaKey
     }
 }
 
-impl<Key> Configuration for EncryptConfig<Key> where Key: RsaKey {
+impl Configuration for EncryptConfig {
     fn get_help_message() -> String {
         todo!()
     }
@@ -434,15 +426,13 @@ impl<Key> Configuration for EncryptConfig<Key> where Key: RsaKey {
 // show help for this command
 //
 // Note: file_header should contain information about the key that was used to encrypt
-struct DecryptConfig<Key> 
-where Key: RsaKey
-{
-    key: Key,
+struct DecryptConfig {
+    key_file: String,
     file: Option<String>,
     message: String,
 }
 
-impl<Key> Configuration for DecryptConfig<Key> where Key: RsaKey {
+impl Configuration for DecryptConfig  {
     fn get_help_message() -> String {
         todo!()
     }
@@ -488,6 +478,6 @@ fn get_flags(args: &[String]) -> HashMap<Flag, usize> {
 fn is_flag(flag: &str) -> bool {
     let match_alphabetic = |s: char| -> bool {
         s.is_ascii_alphabetic()
-    } ;
+    };
     flag.len() == 2 && flag.starts_with("-") && flag.ends_with(match_alphabetic)
 }
