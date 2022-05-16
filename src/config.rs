@@ -1,8 +1,43 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display, str::ParseBoolError, fs::File, io::Read};
 use num_cpus;
 use chrono::{self, Datelike, Timelike};
 
-use crate::key_gen::RsaKey;
+use crate::key_gen::{RsaKey, self};
+
+type Result<T> = std::result::Result<T, ParseCommandError>;
+
+#[derive(Debug)]
+pub struct ParseCommandError {
+    err_type: ErrorType,
+}
+
+impl From<ErrorType> for ParseCommandError {
+    fn from(err_type: ErrorType) -> Self {
+        ParseCommandError { err_type }
+    }
+}
+
+impl ParseCommandError {
+    pub fn get_message(&self) -> &str {
+        match &self.err_type {
+            ErrorType::InvalidFlag(msg) => msg,
+            ErrorType::HelpFlag(msg) => msg,
+            ErrorType::InvalidBitSize(msg) => msg,
+            ErrorType::InvalidArgs(msg) => msg,
+            ErrorType::Other(msg) => msg,
+        }
+    }
+}
+
+
+#[derive(Debug)]
+enum ErrorType {
+    InvalidFlag(String),
+    HelpFlag(String),
+    InvalidBitSize(String),
+    InvalidArgs(String),
+    Other(String),
+}
 
 // Contains configuration structs for commands
 trait Configuration {
@@ -24,11 +59,12 @@ trait Configuration {
         }
     }
 
-    fn print_error(invalid_flag: &str, command: &str) {
-        println!("Invalid flag: {}. Enter {} -h for help", invalid_flag, command);
+    #[inline(always)]
+    fn get_error_message(invalid_flag: &str, command: &str) -> String {
+        format!("Invalid flag: {}. Enter {} -h for help", invalid_flag, command)
     }
 
-    fn print_help();
+    fn get_help_message() -> String;
 }
 // benchmark commands:
 // benchmark [OPTIONS]
@@ -58,7 +94,7 @@ pub struct BenchmarkConfig {
 }
 
 impl BenchmarkConfig {
-    pub fn new(args: &[String]) -> Option<Self> {
+    pub fn new(args: &[String]) -> Result<Self> {
         let mut bit_sizes = vec![2048];
         let mut n_threads = vec![num_cpus::get_physical() as u8];
         let mut file = None;
@@ -66,25 +102,25 @@ impl BenchmarkConfig {
         for (i, arg) in args.iter().enumerate() {
             if is_flag(arg) {
                 match arg.as_str() {
-                    "-b" => bit_sizes = Self::parse_bit_sizes(&args[(i + 1)..]),
+                    "-b" => bit_sizes = Self::parse_bit_sizes(&args[(i + 1)..])?,
                     "-t" => n_threads = Self::parse_n_threads(&args[(i + 1)..]),
                     "-f" => file = Some(Self::parse_file_name(&args[i..])),
                     "-h" => { 
-                        Self::print_help(); 
-                        return None;
+                        let err_type = ErrorType::HelpFlag(Self::get_help_message());
+                        return Err(ParseCommandError::from(err_type));
                     },
                     invalid_flag => { 
-                        Self::print_error(invalid_flag, "benchmark"); 
-                        return None;
+                        let err_type = ErrorType::InvalidFlag(Self::get_error_message(invalid_flag, "benchmark"));
+                        return Err(ParseCommandError::from(err_type));
                     },
                 }
             }
         }
         
-        Some(BenchmarkConfig { bit_sizes, n_threads, file })
+        Ok(BenchmarkConfig { bit_sizes, n_threads, file })
     }
 
-    fn parse_bit_sizes(args: &[String]) -> Vec<u16> {
+    fn parse_bit_sizes(args: &[String]) -> Result<Vec<u16>> {
         let mut bit_sizes = Vec::new();
         // loop through args until next flag is found
         for arg in args {
@@ -96,18 +132,22 @@ impl BenchmarkConfig {
                 if Self::is_valid_bit_size(n) {
                     bit_sizes.push(n)
                 } else {
-                    println!("Not in range or not power of 2: {}. Will be ignored", n);
+                    let err_msg = format!("Not in range or not power of 2: {}.", n);
+                    let err_type = ErrorType::InvalidBitSize(err_msg);
+                    return Err(ParseCommandError::from(err_type));
                 }
             }
         }
-        // if input was empty or numbers where invalid bitsizes, push default values
+        // if input was empty 
         if bit_sizes.len() == 0 {
-            println!("Entered bit sizes where invalid, defaulting to 2048");
-            bit_sizes.push(2048)
+            let err_msg = format!("No key length parameters found or non numeric inputs.");
+            let err_type = ErrorType::InvalidBitSize(err_msg);
+            return Err(ParseCommandError::from(err_type));
         }
-        bit_sizes
+        Ok(bit_sizes)
     }
 
+    // TODO update to errortype maybe
     fn parse_n_threads(args: &[String]) -> Vec<u8> {
         let mut n_threads = vec![];
         for arg in args {
@@ -128,8 +168,8 @@ impl BenchmarkConfig {
 }
 
 impl Configuration for BenchmarkConfig {
-    fn print_help() {
-        println!("TODO")
+    fn get_help_message() -> String {
+        "TODO".to_string()
     }
 }
 
@@ -146,14 +186,14 @@ mod benchmark_tests {
                         "-t".to_string(), "5".to_string(), 
                         "-g".to_string(), "bla".to_string()];
         let cfg = BenchmarkConfig::new(&args);
-        assert!(cfg.is_none());
+        assert!(cfg.is_err());
     }
 
     #[test]
     fn test_new_b_valid() {
         let args = vec!["-b".to_string(), "1024".to_string(), "2048".to_string()];
         let cfg = BenchmarkConfig::new(&args);
-        assert!(cfg.is_some());
+        assert!(cfg.is_ok());
         let cfg = cfg.unwrap();
         assert_eq!(cfg.bit_sizes, vec![1024, 2048]);
         assert_eq!(cfg.n_threads, vec![num_cpus::get_physical() as u8]);
@@ -165,7 +205,7 @@ mod benchmark_tests {
     fn test_new_b_invalid() {
         let args = vec!["-b".to_string(), "bla".to_string(), "blub".to_string()];
         let cfg = BenchmarkConfig::new(&args);
-        assert!(cfg.is_some());
+        assert!(cfg.is_ok());
         let cfg = cfg.unwrap();
         assert_eq!(cfg.bit_sizes, vec![2048]);
         assert_eq!(cfg.n_threads, vec![num_cpus::get_physical() as u8]);
@@ -176,7 +216,7 @@ mod benchmark_tests {
     fn test_new_b_one_invalid() {
         let args = vec!["-b".to_string(), "bla".to_string(), "1024".to_string()];
         let cfg = BenchmarkConfig::new(&args);
-        assert!(cfg.is_some());
+        assert!(cfg.is_ok());
         let cfg = cfg.unwrap();
         assert_eq!(cfg.bit_sizes, vec![1024]);
         assert_eq!(cfg.n_threads, vec![num_cpus::get_physical() as u8]);
@@ -187,7 +227,7 @@ mod benchmark_tests {
     fn test_new_t_valid() {
         let args = vec!["-t".to_string(), "5".to_string(), "10".to_string()];
         let cfg = BenchmarkConfig::new(&args);
-        assert!(cfg.is_some());
+        assert!(cfg.is_ok());
         let cfg = cfg.unwrap();
         assert_eq!(cfg.bit_sizes, vec![2048]);
         assert_eq!(cfg.n_threads, vec![5, 10]);
@@ -198,7 +238,7 @@ mod benchmark_tests {
     fn test_new_t_invalid() {
         let args = vec!["-t".to_string(), "bla".to_string(), "blub".to_string()];
         let cfg = BenchmarkConfig::new(&args);
-        assert!(cfg.is_some());
+        assert!(cfg.is_ok());
         let cfg = cfg.unwrap();
         assert_eq!(cfg.bit_sizes, vec![2048]);
         assert_eq!(cfg.n_threads, vec![num_cpus::get_physical() as u8]);
@@ -208,7 +248,7 @@ mod benchmark_tests {
     fn test_new_f_with_name() {
         let args = vec!["-f".to_string(), "my_file".to_string()];
         let cfg = BenchmarkConfig::new(&args);
-        assert!(cfg.is_some());
+        assert!(cfg.is_ok());
         let cfg = cfg.unwrap();
         assert_eq!(cfg.bit_sizes, vec![2048]);
         assert_eq!(cfg.n_threads, vec![num_cpus::get_physical() as u8]);
@@ -220,7 +260,7 @@ mod benchmark_tests {
     fn test_new_f_without_name() {
         let args = vec!["-f".to_string()];
         let cfg = BenchmarkConfig::new(&args);
-        assert!(cfg.is_some());
+        assert!(cfg.is_ok());
         let cfg = cfg.unwrap();
         assert_eq!(cfg.bit_sizes, vec![2048]);
         assert_eq!(cfg.n_threads, vec![num_cpus::get_physical() as u8]);
@@ -248,51 +288,47 @@ pub struct GenerateConfig {
 }
 
 impl GenerateConfig {
-    pub fn new(args: &[String]) -> Option<Self> {
+    pub fn new(args: &[String]) -> Result<Self> {
         let mut length = 2048;
         let mut file = None;
 
         for (i, arg) in args.iter().enumerate() {
             if is_flag(arg) {
                 match arg.as_str() {
-                    "-b" => length = Self::parse_key_length(&args[i..]),
+                    "-b" => length = Self::parse_key_length(&args[i..])?,
                     "-f" => file = Some(Self::parse_file_name(&args[i..])),
                     "-h" => {
-                        Self::print_help();
-                        return None;
+                        let err_type = ErrorType::HelpFlag(Self::get_help_message());
+                        return Err(ParseCommandError::from(err_type));
                     }
                     invalid_flag => { 
-                        Self::print_error(invalid_flag, "generate");
-                        return None;
+                        let err_type = ErrorType::InvalidFlag(Self::get_error_message(invalid_flag, "generate"));
+                        return Err(ParseCommandError::from(err_type));
                     }
                 }
             }
         } 
-        Some(GenerateConfig { length, file })
+        Ok(GenerateConfig { length, file })
     }
 
     #[inline(always)]
-    fn parse_key_length(args: &[String]) -> u16 {
-        let mut key_length = 2048;
+    fn parse_key_length(args: &[String]) -> Result<u16> {
         if let None = args.get(1) {
-            println!("No key length specified, defaulting to 2048");
-            return key_length;
+            return Err(ParseCommandError::from(ErrorType::InvalidBitSize("No key length specified.".to_string())));
         }
         if let Ok(n) = args[1].parse::<u16>() {
             if Self::is_valid_bit_size(n) {
-                key_length = n;
-            } else {
-                println!("Not a number or invalid key lenght: {}, defaulting to 2048", args[1])
+                return Ok(n);
             }
         }
-        
-        key_length
+        println!("Not a number or invalid key length.\nNeeds to be power of two and in range 512 to 8192.");
+        Err(ParseCommandError::from(ErrorType::InvalidBitSize("Not a number or invalid key length.\nNeeds to be power of two and in range 512 to 8192.".to_string())))
     }
 }
 
 impl Configuration for GenerateConfig {
-    fn print_help() {
-        println!("None");
+    fn get_help_message() -> String {
+        todo!()
     }
 }
 
@@ -302,8 +338,6 @@ impl Configuration for GenerateConfig {
 // flags:
 // -f [file_name] 
 // specify if message should be saved to file
-// -p
-// use public key to encrypt (standard option)
 // -s
 // use private key to encrypt
 // -F
@@ -318,9 +352,74 @@ where Key: RsaKey
     message: String,
 }
 
+impl<Key> EncryptConfig<Key> 
+where Key: RsaKey
+{
+    fn new(args: &[String]) -> Result<Self> {
+        if args.len() < 2 {
+            return Err(ParseCommandError::from(ErrorType::InvalidArgs("Key_file and message required.".to_string())));
+        }
+        let mut is_private = false;
+        let mut file: Option<String> = None;
+        let mut message = String::new();
+        for (i, arg) in args[0..args.len() - 2].iter().enumerate() {
+            if is_flag(arg) {
+                match arg.as_str() {
+                    "-s" => is_private = true,
+                    "-F" => message = Self::parse_message(&args[i + 1..])?,
+                    "-h" => {
+                        let err_type = ErrorType::HelpFlag(Self::get_help_message());
+                        return Err(ParseCommandError::from(err_type));
+                    },
+                    invalid_flag => {
+                        let err_type = ErrorType::InvalidFlag(Self::get_error_message(invalid_flag, "encrypt"));
+                        return Err(ParseCommandError::from(err_type));
+                    }
+                }
+            }   
+        }
+
+        if message.len() == 0 {
+            message = args[args.len() - 1].clone();
+        }
+
+        let key_file = args[args.len() - 2].clone();
+
+        match key_gen::RsaKey::from_file(key_file) {
+            Ok(key) => Ok(EncryptConfig { key, is_private, file, message }),
+            Err(e) => return Err(ParseCommandError::from(ErrorType::Other(e.to_string()))),
+        }
+    }
+
+    fn parse_message(args: &[String]) -> Result<String> {
+        let file_name = match args.get(1) {
+            Some(s) => s,
+            None => {
+                let err_type = ErrorType::InvalidArgs("No file name given.".to_string());
+                return Err(ParseCommandError::from(err_type));
+            },
+        };
+        let mut f = match File::open(file_name)  {
+            Ok(f) => f,
+            Err(e) => {
+                let err_type = ErrorType::Other(e.to_string());
+                return Err(ParseCommandError::from(err_type));
+            },
+        };
+        let mut message = String::new();
+        match f.read_to_string(&mut message) {
+            Ok(_) => Ok(message),
+            Err(e) => {
+                let err_type = ErrorType::Other(e.to_string());
+                Err(ParseCommandError::from(err_type))
+            }
+        }
+    }
+}
+
 impl<Key> Configuration for EncryptConfig<Key> where Key: RsaKey {
-    fn print_help() {
-        println!("TODO");
+    fn get_help_message() -> String {
+        todo!()
     }
 }
 
@@ -344,8 +443,8 @@ where Key: RsaKey
 }
 
 impl<Key> Configuration for DecryptConfig<Key> where Key: RsaKey {
-    fn print_help() {
-        println!("TODO");
+    fn get_help_message() -> String {
+        todo!()
     }
 }
 
