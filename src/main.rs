@@ -1,6 +1,6 @@
 
 use std::env;
-use rsa_arbitray_precision::config;
+use rsa_arbitray_precision::commands::*;
 
 
 // TODO maybe implement factory pattern for config 
@@ -43,7 +43,7 @@ fn main() {
 // -h
 // show help for this command
 fn do_benchmark(args: &[String]) {
-    let config = config::BenchmarkConfig::new(args);
+    let config = benchmark::BenchmarkConfig::new(args);
 }
 
 // Generate a key pair
@@ -58,7 +58,7 @@ fn do_benchmark(args: &[String]) {
 // -h
 // show help for this command
 fn do_generate(args: &[String]) {
-    let config = config::GenerateConfig::new(args);
+    let config = generate::GenerateConfig::new(args);
 }
 
 // encrypt a message 
@@ -67,8 +67,6 @@ fn do_generate(args: &[String]) {
 // flags:
 // -f [file_name] 
 // specify if message should be saved to file
-// -p
-// use public key to encrypt (standard option)
 // -s
 // use private key to encrypt
 // -F
@@ -76,7 +74,7 @@ fn do_generate(args: &[String]) {
 // -h
 // show help for this command
 fn do_encrypt(args: &[String]) {
-    let config = config::EncryptConfig::new(args);
+    let config = encrypt::EncryptConfig::new(args);
 }
 
 // decrypt a message
