@@ -4,24 +4,11 @@ type Result<T> = std::result::Result<T, ParseCommandError>;
 
 // benchmark commands:
 // benchmark [OPTIONS]
-// if no flags are specified, it will go from 1k to 4k
-// with n_thread = num_cpus 
-// flags:
-// -b:
-// bitsizes can be specified with -b [1024,2048,...]
-// bitsizes can be entered as a comma separated list of numbers
-// bitsizes have to be a power of two in range of 128 to 8192
-// invalid bitsizes will be ignored, but user should be notified
-// -t:
-// num of threads with -t [t1,t2,t3,...,tn]
-// threads can be entered as a comma separated list of numbers
-// if none specified run with threads equal to amount of cpu cores 
-// add flag to specify number of threads and bit sizes
-// -f [file_name]
-// save results to a file 
-// if [file_name] is empty, a default name with the date and time is created
-// -h
-// show help for this command
+// OPTIONS:
+// -s, --size=<1024,2048,...> size of keys to be used, from 128 to 8192, 1204 and 2048 if empty
+// -t, --threads=<1,2,3,...> number of threads to be used, num cpus if empty
+// -f, --file <file_name> save results to a file, bm.txt if empty
+// -h, --help print help for this command
 #[derive(Debug)]
 pub struct BenchmarkConfig {
     bit_sizes: Vec<u16>,
