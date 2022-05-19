@@ -1,2 +1,2 @@
 pub mod parser;
-pub mod flags;
+pub mod opt;

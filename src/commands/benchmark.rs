@@ -5,8 +5,8 @@ type Result<T> = std::result::Result<T, ParseCommandError>;
 // benchmark commands:
 // benchmark [OPTIONS]
 // OPTIONS:
-// -s, --size=<1024,2048,...> size of keys to be used, from 128 to 8192, 1204 and 2048 if empty
-// -t, --threads=<1,2,3,...> number of threads to be used, num cpus if empty
+// -s, --size <1024 2048 ...> size of keys to be used, from 128 to 8192, 1204 and 2048 if empty
+// -t, --threads <1 2 3 ...> number of threads to be used, num cpus if empty
 // -f, --file <file_name> save results to a file, bm.txt if empty
 // -h, --help print help for this command
 #[derive(Debug)]
