@@ -43,7 +43,11 @@ fn main() {
 // -h
 // show help for this command
 fn do_benchmark(args: &[String]) {
-    let config = benchmark::BenchmarkConfig::new(args);
+    let config = benchmark::BenchmarkConfig::init(args);
+    match config {
+        Ok(config) => benchmark::run(config),
+        Err(e) => eprintln!("{}", e.get_msg()),
+    }
 }
 
 // Generate a key pair
@@ -58,7 +62,7 @@ fn do_benchmark(args: &[String]) {
 // -h
 // show help for this command
 fn do_generate(args: &[String]) {
-    let config = generate::GenerateConfig::new(args);
+    // let config = generate::GenerateConfig::new(args);
 }
 
 // encrypt a message 
@@ -74,7 +78,7 @@ fn do_generate(args: &[String]) {
 // -h
 // show help for this command
 fn do_encrypt(args: &[String]) {
-    let config = encrypt::EncryptConfig::new(args);
+    // let config = encrypt::EncryptConfig::new(args);
 }
 
 // decrypt a message

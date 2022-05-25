@@ -17,6 +17,33 @@ impl ParsedOpt {
         };
         flag.len() == 2 && flag.starts_with("-") && flag.ends_with(match_alphabetic)
     }
+
+    pub(crate) fn verify(&self, name: &str, args: Option<Vec<String>>) -> bool {
+        &self.name == name &&
+        self.args == args
+    }
+
+    /// Returns the Long Opt name of the flag
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    /// Consumes the ParsedOpt, returning the provided Args for opt
+    pub fn consume(mut self) -> Option<Vec<String>> {
+        self.args.take()
+    }
+}
+
+#[test]
+fn test_verify_true() {
+    let opt = ParsedOpt::new("b".to_string(), FlagType::SingleArg(true), Some(vec!["arg".to_string()]));
+    assert!(opt.verify("b", Some(vec!["arg".to_string()])));
+}
+
+#[test]
+fn test_verify_false() {
+    let opt = ParsedOpt::new("b".to_string(), FlagType::SingleArg(true), Some(vec!["arg".to_string()]));
+    assert!(!opt.verify("b", Some(vec!["args".to_string()])));
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -26,6 +53,7 @@ pub(crate) enum FlagType {
     MultiArg(bool),
 }
 
+#[derive(Debug)]
 pub(crate) struct OptDescriptor {
     short: String,
     long: String,
@@ -53,13 +81,31 @@ impl OptDescriptor {
         self.f_type
     }
 
+    // always returns the long value
     #[inline(always)]
     pub fn get_name(&self) -> String {
-        String::from(&self.short)
+        String::from(&self.long)
     }
 }
 
 #[inline(always)]
 pub fn is_opt(arg: &str) -> bool {
     arg.starts_with("--") || arg.starts_with("-")
+}
+
+#[macro_export]
+macro_rules! opt {
+    ($ ($s:expr, $l:expr, $t: expr)?) => {
+        {
+            $(
+                OptDescriptor::new(String::from($s), String::from($l), $t)
+            )?
+        }
+    }
+}
+
+#[test]
+fn test_opt_macro() {
+    let opt1 = opt!("a", "aaa", FlagType::NoArg);
+    println!("{:?}", opt1);
 }

@@ -3,7 +3,11 @@ use super::opt::{ParsedOpt, FlagType, OptDescriptor, self};
 
 type Result<T> = std::result::Result<T, ParseFlagError>;
 
-pub struct ParseFlagError;
+#[derive(Debug)]
+pub enum ParseFlagError {
+    ArgRequired(String),
+    InvalidOpt(String),
+}
 
 pub(crate) struct OptParser<'args> {
     args: &'args[String],
@@ -16,6 +20,10 @@ impl<'args> OptParser<'args> {
         OptParser { args, args_index: 0, expected }
     }
 
+    /// Get's the next opt. 
+    /// If opt is not in expected, return Some(Err(ParseFlagError)),
+    /// if args_index >= args.len() return None, 
+    /// else return Some(Ok(ParsedOpt))
     fn get_opt(&mut self) -> Option<Result<ParsedOpt>> {
         // loop through args and search for flags that are contained in expected
         // if found, try to parse it according to FlagType
@@ -37,32 +45,33 @@ impl<'args> OptParser<'args> {
         // if arg is a long option
         let found_opt = if let Some(opt) = self.is_expected_long(&arg) { opt }
         else if let Some(opt) = self.is_expected_short(&arg) { opt }
-        else { return Some(Err(ParseFlagError)); };
+        else { return Some(Err(ParseFlagError::InvalidOpt(arg.to_string()))); };
 
-        let mut c = 1;
+        // match by FlagType, to determine additional options
         let args = match found_opt.get_f_type() {
             FlagType::NoArg => {
                 None
             },
             FlagType::SingleArg(is_optional) => {
-                match self.args.get(self.args_index + c) {
+                match self.args.get(self.args_index + 1) {
                     Some(arg) => {
+                        // if additional option is required, but not given, return Error
                         if !is_optional && opt::is_opt(arg) {
-                            return Some(Err(ParseFlagError));
+                            return Some(Err(ParseFlagError::ArgRequired(arg.to_string())));
                         } 
                         if opt::is_opt(arg) {
                             None
                         } else {
-                            c += 1;
                             Some(vec![arg.to_string()])
                         }
                     },
-                    None => if is_optional { None } else { return Some(Err(ParseFlagError)); }
+                    None => if is_optional { None } else { return Some(Err(ParseFlagError::ArgRequired(arg.to_string()))); }
                 }
             },
             FlagType::MultiArg(is_optional) => {
                 let mut found_args = vec![];
-                // let c = 0;
+                let mut c = 1;
+                // collect additional options
                 while let Some(arg) = self.args.get(self.args_index + c) {
                     if !opt::is_opt(arg) {
                         found_args.push(arg.to_string());
@@ -71,8 +80,9 @@ impl<'args> OptParser<'args> {
                         break;
                     }
                 }
+                // if additional options are required, but not found, return Err
                 if found_args.len() == 0 && !is_optional {
-                    return Some(Err(ParseFlagError));
+                    return Some(Err(ParseFlagError::ArgRequired(arg.to_string())));
                 } else if found_args.len() == 0 {
                     None
                 } else {
@@ -81,7 +91,6 @@ impl<'args> OptParser<'args> {
             },
         };
         let result = Some(Ok(ParsedOpt::new(found_opt.get_name(), found_opt.get_f_type(), args )));
-        self.args_index += c;
         result
     }
 
@@ -108,6 +117,19 @@ impl<'args> OptParser<'args> {
         }
         None
     }
+
+    // reposition the parser to point to the next flag
+    fn reposition(&mut self) {
+        let mut i = 1;
+        while let Some(arg) = self.args.get(self.args_index + i) {
+            if opt::is_opt(arg) {
+                self.args_index += i;
+                return;
+            }
+            i += 1;
+        }
+        self.args_index += i;
+    }
 }
 
 impl<'args> Iterator for OptParser<'args> {
@@ -117,23 +139,44 @@ impl<'args> Iterator for OptParser<'args> {
         if self.args_index >= self.args.len() {
             None
         } else {
-            self.get_opt()
+            let opt = self.get_opt();
+            self.reposition();
+            opt
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::opt;
     use crate::parser::opt::OptDescriptor;
     use crate::parser::opt::FlagType;
     use super::OptParser;
 
     // parser tests
     #[test]
+    fn test_reposition() {
+        let args: Vec<String> = (vec!["-a", "blub", "-b", "-c", "1", "2", "3", "-d", "bla", "bla"])
+            .into_iter().map(|s| s.to_string())
+            .collect();
+
+        let mut parser = OptParser::new(&args, vec![]);
+        assert_eq!(parser.args_index, 0);
+        parser.reposition();
+        assert_eq!(parser.args_index, 2);
+        parser.reposition();
+        assert_eq!(parser.args_index, 3);
+        parser.reposition();
+        assert_eq!(parser.args_index, 7);
+        parser.reposition();
+        assert!(parser.next().is_none())
+    }
+
+    #[test]
     fn test_no_args() {
         let expected = vec![
-            OptDescriptor::new( "a".to_string(), "aaa".to_string(), FlagType::NoArg),
-            OptDescriptor::new("b".to_string(), "bbb".to_string(), FlagType::NoArg)];
+            opt!("a", "aaa", FlagType::NoArg),
+            opt!("b", "bbb", FlagType::NoArg)];
         let args = vec!["-a".to_string(), "--bbb".to_string(), "-c".to_string()];
         let mut parser = OptParser::new(&args, expected);
         let opt1 = parser.next();
@@ -143,5 +186,133 @@ mod tests {
         let opt3 = parser.next();
         assert!(opt3.is_some());
         assert!(opt3.unwrap().is_err());
+        let opt4 = parser.next();
+        assert!(opt4.is_none());
+    }
+
+    #[test]
+    fn test_one_arg_valid() {
+        let expected = vec![
+            opt!("a", "aaa", FlagType::SingleArg(true)),
+            opt!("b", "bbb", FlagType::SingleArg(false)),
+        ];
+        let args = (vec!["--aaa", "-b", "im_an_opt"]).into_iter().map(|s| s.to_string()).collect::<Vec<String>>();
+        let mut parser = OptParser::new(&args, expected);
+
+        let opt = parser.next();
+        assert!(opt.is_some());
+        let opt = opt.unwrap();
+        assert!(opt.is_ok());
+        assert!(opt.unwrap().verify("aaa", None));
+
+        let opt = parser.next();
+        assert!(opt.is_some());
+        let opt = opt.unwrap();
+        assert!(opt.is_ok());
+        assert!(opt.unwrap().verify("bbb", Some(vec!["im_an_opt".to_string()])));
+
+        let opt = parser.next();
+        assert!(opt.is_none());
+    }
+
+    #[test]
+    fn test_one_arg_invalid() {
+        let expected = vec![
+            opt!("a", "aaa", FlagType::SingleArg(false)),
+            opt!("b", "bbb", FlagType::SingleArg(false)),
+            opt!("c", "ccc", FlagType::SingleArg(true)),
+        ];
+        let args = vec!["-a".to_string(), "opt_a".to_string(), "-b".to_string(), "--ccc".to_string()];
+        let mut parser = OptParser::new(&args, expected);
+
+        let opt = parser.next();
+        assert!(opt.is_some());
+        let opt = opt.unwrap();
+        assert!(opt.is_ok());
+        assert!(opt.unwrap().verify("aaa", Some(vec!["opt_a".to_string()])));
+
+        let opt = parser.next();
+        assert!(opt.is_some());
+        let opt = opt.unwrap();
+        assert!(opt.is_err());
+
+        let opt = parser.next();
+        assert!(opt.is_some());
+        let opt = opt.unwrap();
+        assert!(opt.is_ok());
+        assert!(opt.unwrap().verify("ccc", None));
+
+        let opt = parser.next();
+        assert!(opt.is_none());
+    }
+
+    #[test]
+    fn test_multi_arg_valid() {
+        let expected = vec![
+            opt!("a", "aaa", FlagType::MultiArg(true)),
+            opt!("b", "bbb", FlagType::MultiArg(true)),
+            opt!("c", "ccc", FlagType::MultiArg(false)),
+        ];
+        let args = (vec!["-a", "--bbb", "one", "two", "-c", "one", "two", "three"])
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<String>>();
+        let mut parser = OptParser::new(&args, expected);
+
+        let opt = parser.next();
+        assert!(opt.is_some());
+        let opt = opt.unwrap();
+        assert!(opt.is_ok());
+        assert!(opt.unwrap().verify("aaa", None));
+
+        let opt = parser.next();
+        assert!(opt.is_some());
+        let opt = opt.unwrap();
+        assert!(opt.is_ok());
+        assert!(opt.unwrap().verify("bbb", Some(vec!["one".to_string(), "two".to_string()])));
+
+        let opt = parser.next();
+        assert!(opt.is_some());
+        let opt = opt.unwrap();
+        assert!(opt.is_ok());
+        assert!(opt.unwrap().verify("ccc", Some(vec!["one".to_string(), "two".to_string(), "three".to_string()])));
+
+        let opt = parser.next();
+        assert!(opt.is_none());
+    }
+
+    #[test]
+    fn test_multi_arg_invalid() {
+        let expected = vec![
+            opt!("a", "aaa", FlagType::MultiArg(true)),
+            opt!("b", "bbb", FlagType::MultiArg(false)),
+            opt!("c", "ccc", FlagType::MultiArg(false)),
+        ];
+        let args = (vec!["-a", "one", "two", "--bbb",  "-c", "one", "two", "three"])
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<String>>();
+
+        let mut parser = OptParser::new(&args, expected);
+
+        let opt = parser.next();
+        assert!(opt.is_some());
+        let opt = opt.unwrap();
+        assert!(opt.is_ok());
+        assert!(opt.unwrap().verify("aaa", Some(vec!["one".to_string(), "two".to_string()])));
+
+        let opt = parser.next();
+        assert!(opt.is_some());
+        let opt = opt.unwrap();
+        assert!(opt.is_err());
+
+        let opt = parser.next();
+        assert!(opt.is_some());
+        let opt = opt.unwrap();
+        assert!(opt.is_ok());
+        assert!(opt.unwrap().verify("ccc", Some(vec!["one".to_string(), "two".to_string(), "three".to_string()])));
+
+        let opt = parser.next();
+        assert!(opt.is_none());
     }
 }

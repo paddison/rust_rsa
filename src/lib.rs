@@ -1,4 +1,3 @@
-pub mod benchmark;
 pub mod helpers;
 pub mod key_gen;
 pub mod prime_gen;

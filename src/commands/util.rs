@@ -39,7 +39,7 @@ pub enum ErrorType {
 // Contains configuration structs for commands
 pub trait Configuration {
     #[inline(always)]
-    fn is_valid_bit_size(n: u16) -> bool {
+    fn is_valid_bit_size(n: u32) -> bool {
         // power of two will have one bit set
         // check if n & n - 1 == 0, (100 & 011 == 000)
         n <= 8196 && n >= 128 && (n & (n - 1) == 0) 
