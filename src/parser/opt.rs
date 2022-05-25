@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub(crate) struct ParsedOpt {
     name: String,
     f_type: FlagType,
@@ -5,6 +6,10 @@ pub(crate) struct ParsedOpt {
 }
 
 impl ParsedOpt {
+    pub fn new(name: String, f_type: FlagType, args: Option<Vec<String>>) -> Self {
+        ParsedOpt{ name, f_type, args }
+    }
+
     // checks if the argument is a flag or not (flags will always have the form of "-[a-zA-Z]")
     pub fn is_flag(flag: &str) -> bool {
         let match_alphabetic = |s: char| -> bool {
@@ -14,6 +19,7 @@ impl ParsedOpt {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum FlagType {
     NoArg,
     SingleArg(bool), // boolean indicating if arg is optional
@@ -27,9 +33,14 @@ pub(crate) struct OptDescriptor {
 }
 
 impl OptDescriptor {
+
+    pub fn new(short: String, long: String, f_type: FlagType) -> Self {
+        Self {short, long, f_type }
+    }
+
     #[inline(always)]
     pub fn contains_short(&self, other: &str) -> bool {
-        &self.long == other
+        &self.short == other
     }
 
     #[inline(always)]
@@ -38,13 +49,13 @@ impl OptDescriptor {
     }
 
     #[inline(always)]
-    pub fn get_f_type(&self) -> &FlagType {
-        &self.f_type
+    pub fn get_f_type(&self) -> FlagType {
+        self.f_type
     }
 
     #[inline(always)]
     pub fn get_name(&self) -> String {
-        String::from(self.short)
+        String::from(&self.short)
     }
 }
 
