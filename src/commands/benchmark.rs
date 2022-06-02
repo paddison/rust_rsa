@@ -1,12 +1,13 @@
-use crate::parser::parser::{OptParser, ParseFlagError};
+use crate::parser::parser::OptParser;
 use crate::{opt, parser::opt::FlagType};
 use crate::parser::opt::OptDescriptor;
+use std::io::Write;
 use std::{collections::HashMap, time};
 use crate::key_gen;
 
-use super::util::Configuration;
+use super::util::{Configuration, InitConfigError, self};
 
-type Result<T> = std::result::Result<T, InitBenchmarkError>;
+type Result<T> = std::result::Result<T, InitConfigError>;
 
 const L_SIZE: &str = "size";
 const L_THREADS: &str = "threads";
@@ -31,13 +32,13 @@ impl InitBenchmarkError {
     }
 }
 
-// // benchmark commands:
-// // benchmark [OPTIONS]
-// // OPTIONS:
-// // -s, --size <1024 2048 ...> size of keys to be used, from 128 to 8192, 1204 and 2048 if empty
-// // -t, --threads <1 2 3 ...> number of threads to be used, num cpus if empty
-// // -f, --file <file_name> save results to a file, bm.txt if empty
-// // -h, --help print help for this command
+// benchmark commands:
+// benchmark [OPTIONS]
+// OPTIONS:
+// -s, --size <1024 2048 ...> size of keys to be used, from 128 to 8192, 1204 and 2048 if empty
+// -t, --threads <1 2 3 ...> number of threads to be used, num cpus if empty
+// -f, --file <file_name> save results to a file, bm.txt if empty
+// -h, --help print help for this command
 // -r, --repeats number of repeats, defaults to 5
 #[derive(Debug)]
 pub struct BenchmarkConfig {
@@ -51,29 +52,15 @@ pub struct BenchmarkConfig {
 impl BenchmarkConfig {
     pub fn init(args: &[String]) -> Result<Self> {
         let expected = vec![
-            opt!(S_SIZE, L_SIZE, FlagType::MultiArg(true)),
-            opt!(S_THREADS, L_THREADS, FlagType::MultiArg(true)),
+            opt!(S_SIZE, L_SIZE, FlagType::MultiArg(false)),
+            opt!(S_THREADS, L_THREADS, FlagType::MultiArg(false)),
             opt!(S_FILE, L_FILE, FlagType::SingleArg(true)),
             opt!(S_HELP, L_HELP, FlagType::NoArg),
-            opt!(S_REPEATS, L_REPEATS, FlagType::SingleArg(true)),
+            opt!(S_REPEATS, L_REPEATS, FlagType::SingleArg(false)),
         ];
 
-        let mut parser = OptParser::new(args, expected);
-        let mut found_opts = vec![];
-
-        // get all the options from the provided arguments
-        while let Some(result) = parser.next() {
-            match result {
-                Ok(found_opt) => found_opts.push(found_opt),
-                Err(e) => {
-                    let msg = match e {
-                        ParseFlagError::ArgRequired(flag) => format!("No arguments provided for: {}", flag),
-                        ParseFlagError::InvalidOpt(flag) => format!("Invalid option: {}", flag),
-                    };
-                    return Err(InitBenchmarkError { msg });
-                }
-            }
-        }
+        let parser = OptParser::new(args, expected);
+        let found_opts = Self::consume_parser(parser)?;
 
         // Go through found options and create config accordingly
         let mut bit_sizes = vec![2048];
@@ -92,7 +79,11 @@ impl BenchmarkConfig {
                 L_FILE => match opt.consume() {
                     // indexing directly is safe, since file refers to SingleArg and parser returns None
                     // if no arg was provided, otherwise file_name will hold exactly one value
-                    Some(file_name) => file = Some(file_name[0].clone()),
+                    Some(file_name) => {
+                        // if file already exists, return error                      
+                        file = Some(util::verify_file_name(&file_name[0])?)
+                    },
+                    //bm.txt gets overwritten
                     None => file = Some("bm.txt".to_string()),
                     
                 },
@@ -102,12 +93,11 @@ impl BenchmarkConfig {
                         if let Ok(n) = repeats_strings[0].parse::<u16>() {
                             repeats = n;
                         } else {
-                            return Err(InitBenchmarkError { msg: format!("Unable to parse number of repeats: {}", repeats_strings[0])});
+                            return Err(InitConfigError { msg: format!("Unable to parse number of repeats: {}", repeats_strings[0])});
                         }
-                        
                     }
                 }
-                invalid => return Err(InitBenchmarkError { msg: format!("Parser returned invalid opt: {}", invalid) }),
+                invalid => return Err(InitConfigError { msg: format!("Parser returned invalid opt: {}", invalid) }),
             }
         }
 
@@ -120,11 +110,11 @@ impl BenchmarkConfig {
 
         for size in size_strings {
             if let Err(_) = size.parse::<u32>() {
-                return Err(InitBenchmarkError { msg: format!("Unable to parse bit size: {}", size )});
+                return Err(InitConfigError { msg: format!("Unable to parse bit size: {}", size )});
             }
             let n = size.parse::<u32>().unwrap();
             if !Self::is_valid_bit_size(n) {
-                return Err(InitBenchmarkError { msg: format!("Invalid bit size: {}, needs to be in range of 128 to 8192 and power of 2.", n)});
+                return Err(InitConfigError { msg: format!("Invalid bit size: {}, needs to be in range of 128 to 8192 and power of 2.", n)});
             }
             parsed_sizes.push(n);
         }
@@ -135,12 +125,15 @@ impl BenchmarkConfig {
     #[inline(always)]
     fn parse_n_threads(thread_strings: Vec<String>) -> Result<Vec<usize>> {
         let mut parsed_threads = vec![];
-
         for n_threads in thread_strings {
             if let Err(_) = n_threads.parse::<usize>() {
-                return Err(InitBenchmarkError { msg: format!("Unable to parse number of threads: {}", n_threads )});
+                return Err(InitConfigError { msg: format!("Unable to parse number of threads: {}", n_threads) });
             }
-            parsed_threads.push(n_threads.parse::<usize>().unwrap());
+            let n = n_threads.parse::<usize>().unwrap();
+            if n < 2 {
+                return Err(InitConfigError { msg: format!("Invald thread size: {}, needs to be at least 2", n) })
+            }
+            parsed_threads.push(n);
         }
         Ok(parsed_threads)
     }
@@ -159,6 +152,8 @@ impl Configuration for BenchmarkConfig {
     }
 }
 
+// runs the benchmark
+// results are stored in a hash map of the form <bitsize, vec(n_threads, time)>
 fn benchmark_threads(repeats: u16, n_threads: &Vec<usize>, bit_sizes: &Vec<u32>)  -> HashMap<u32, Vec<(usize, u128)>>{
     let mut benchmark_results = HashMap::new();
 
@@ -177,28 +172,48 @@ fn benchmark_threads(repeats: u16, n_threads: &Vec<usize>, bit_sizes: &Vec<u32>)
     benchmark_results
 }
 
-fn print_results(benchmark_results: HashMap<u32, Vec<(usize, u128)>>) {
-    for (_, _) in benchmark_results {
-
+fn results_to_string(benchmark_results: HashMap<u32, Vec<(usize, u128)>>) -> String {
+    let mut results_string = String::new();
+    for (bit_size, results_per_thread) in benchmark_results {
+        results_string += &format!("Bitsize: {}\n", bit_size); 
+        for (n_threads, time) in results_per_thread {
+            results_string += &format!("\t{} threads: {}ms\n", n_threads, time);
+        }
     }
+
+    results_string
+}
+
+fn write_results_to_file(results: &str, file_name: &str) -> std::io::Result<()> {
+    let mut file = std::fs::File::create(file_name)?;
+
+    Ok(file.write_all(results.as_bytes())?)
 }
 
 pub fn run(config: BenchmarkConfig) {
+    // print help always stops program
     if config.print_help {
         println!("{}", BenchmarkConfig::get_help_message());
         return;
     }
     let benchmark_results = benchmark_threads(config.repeats, &config.n_threads, &config.bit_sizes);
-    if let Some(_) = config.file {
+    let results_string = results_to_string(benchmark_results);
+    println!("{}", results_string);
+    
+    if let Some(file_name) = config.file {
         // store results
+        if let Err(e) = write_results_to_file(&results_string, &file_name) {
+            eprintln!("Error writing to file {}", e);
+        } else {
+            println!("Wrote results to file: {}", file_name);
+        }
     }
-    print_results(benchmark_results);
 }
 
 fn benchmark_generate_key_pair(bits: u32, n_threads: usize) -> u128 {
     let start = time::Instant::now();
     let (_, _) = key_gen::generate_key_pair(bits, n_threads);
-    println!("Created {} bit key pair in {}, with {} threads", bits, start.elapsed().as_millis(), n_threads);
+    // println!("Created {} bit key pair in {}, with {} threads", bits, start.elapsed().as_millis(), n_threads);
     start.elapsed().as_millis()
 }
 
@@ -223,7 +238,7 @@ mod tests {
 
     #[test]
     fn test_init_defaults() {
-        let args = vec!["-f".to_string(), "-t".to_string(), "-s".to_string()];
+        let args = vec!["-f".to_string()];
 
         let config = BenchmarkConfig::init(&args);
         assert!(config.is_ok());

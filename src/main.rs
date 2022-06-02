@@ -62,7 +62,11 @@ fn do_benchmark(args: &[String]) {
 // -h
 // show help for this command
 fn do_generate(args: &[String]) {
-    // let config = generate::GenerateConfig::new(args);
+    let config = generate::GenerateConfig::init(args);
+    match config {
+        Ok(config) => generate::run(config),
+        Err(e) => eprintln!("{}", e.get_msg()),
+    }
 }
 
 // encrypt a message 

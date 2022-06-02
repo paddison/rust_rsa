@@ -179,7 +179,6 @@ pub fn generate_p_q(bits: u32, n_threads: usize) -> (Integer, Integer) {
             }
         });
     }
-
     let p = Integer::from(rx.recv().unwrap().n);
     let q = Integer::from(rx.recv().unwrap().n);
     found_primes.swap(true, Ordering::SeqCst); // signal other threads to stop searching
@@ -236,6 +235,7 @@ fn test_generate_p_q_threads() {
         let start = time::Instant::now();
         let (_, _) = generate_p_q(2048, 8);
         println!("Created 4k bit key pair in {}, with 8 threads", start.elapsed().as_millis());
+    
     }
 }
 

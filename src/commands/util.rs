@@ -2,7 +2,22 @@ use std::{collections::HashMap, fs::File, io::Read};
 use num_cpus;
 use chrono::{self, Datelike, Timelike};
 
+use crate::parser::{parser::{OptParser, ParseFlagError}, opt::ParsedOpt};
+
+// TODO group error types with trait maybe?
 type Result<T> = std::result::Result<T, ParseCommandError>;
+type ConfigResult<T> = std::result::Result<T, InitConfigError>;
+
+#[derive(Debug)]
+pub struct InitConfigError {
+    pub msg: String,
+}
+
+impl InitConfigError {
+    pub fn get_msg(&self) -> &str {
+        &self.msg
+    }
+}
 
 #[derive(Debug)]
 pub struct ParseCommandError {
@@ -37,7 +52,7 @@ pub enum ErrorType {
 }
 
 // Contains configuration structs for commands
-pub trait Configuration {
+pub(crate) trait Configuration {
     #[inline(always)]
     fn is_valid_bit_size(n: u32) -> bool {
         // power of two will have one bit set
@@ -62,4 +77,33 @@ pub trait Configuration {
     }
 
     fn get_help_message() -> String;
+
+    fn consume_parser(mut parser: OptParser) -> ConfigResult<Vec<ParsedOpt>> {
+        let mut found_opts = vec![];
+
+        while let Some(result) = parser.next() {
+            match result {
+                Ok(found_opt) => found_opts.push(found_opt),
+                Err(e) => {
+                    let msg = match e {
+                        ParseFlagError::ArgRequired(flag) => format!("No arguments provided for: {}", flag),
+                        ParseFlagError::InvalidOpt(flag) => format!("Invalid option: {}", flag),
+                    };
+                    return Err(InitConfigError { msg });
+                }, 
+            }
+        }
+
+        Ok(found_opts)
+    }
+
+}
+
+// check if file already exists and return error if so
+#[inline(always)]
+pub fn verify_file_name(file_name: &str) -> ConfigResult<String> {
+    if let Ok(_) = std::fs::File::open(&file_name) {
+        return Err(InitConfigError { msg: format!("File {} already exists.", file_name)});
+    }
+    Ok(file_name.to_string())
 }

@@ -1,6 +1,17 @@
 use crate::commands::util::*;
 
-type Result<T> = std::result::Result<T, ParseCommandError>;
+type Result<T> = std::result::Result<T, InitDecryptError>;
+
+#[derive(Debug)]
+pub struct InitDecryptError {
+    msg: String,
+}
+
+impl InitDecryptError {
+    pub fn get_msg(&self) -> &str {
+        &self.msg
+    }
+}
 
 // decrypt a message
 // decrypt [options] key_file message
