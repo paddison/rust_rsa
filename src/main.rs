@@ -82,7 +82,11 @@ fn do_generate(args: &[String]) {
 // -h
 // show help for this command
 fn do_encrypt(args: &[String]) {
-    // let config = encrypt::EncryptConfig::new(args);
+    let config = encrypt::EncryptConfig::init(args);
+    match config {
+        Ok(config) => encrypt::run(config),
+        Err(e) => eprintln!("{}", e.get_msg()),
+    }
 }
 
 // decrypt a message

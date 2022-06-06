@@ -107,25 +107,34 @@ pub fn run(config: GenerateConfig) {
         return println!("{}", GenerateConfig::get_help_message());
     }
     println!("Generating {} bit key pair...", config.size);
-    let (sk, _) = key_gen::generate_key_pair(config.size, num_cpus::get_physical());    
+    let (sk, pk) = key_gen::generate_key_pair(config.size, num_cpus::get_physical());    
     
     match config.file {
         Some(file_name) => {
-            let f = std::fs::File::create(&file_name);
-            match f {
-                Ok(mut f) => {
-                    let key_string = sk.serialize();
-                    let _ = f.write_all(key_string.as_bytes());
-                    println!("Wrote key to file: {}", file_name);
-                },
-                Err(e) => {
-                    eprintln!("Error creating file: {}.\nKey pair has not been saved", e)
-                }
-            } 
+            // write secret key
+            write_to_file(sk, true, &file_name);
+            write_to_file(pk, false, &file_name);
         }, 
         None => {
             println!("RSA Keys:");
             println!("{}", sk.serialize())
-        }, // print to console
+        },
     }
 }
+
+fn write_to_file<K: RsaKey>(key: K, is_private: bool, file_name: &str) {
+    let (prefix, key_type) = if is_private { ("sk_".to_string(), "private") } else { ("pk_".to_string(), "public key") }; 
+    let file_name = prefix + &file_name;
+    let f_pk = std::fs::File::create(&file_name);
+            match f_pk {
+                Ok(mut f) => {
+                    let key_string = key.serialize();
+                    let _ = f.write_all(key_string.as_bytes());
+                    println!("Wrote {key_type} to file: {file_name}");
+                },
+                Err(e) => {
+                    eprintln!("Error creating {key_type} file: {e}.\nKey has not been saved")
+                }
+            } 
+}
+

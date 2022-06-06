@@ -1,27 +1,18 @@
 use crate::commands::util::*;
 
-type Result<T> = std::result::Result<T, InitDecryptError>;
+type Result<T> = std::result::Result<T, InitConfigError>;
 
-#[derive(Debug)]
-pub struct InitDecryptError {
-    msg: String,
-}
 
-impl InitDecryptError {
-    pub fn get_msg(&self) -> &str {
-        &self.msg
-    }
-}
 
-// decrypt a message
-// decrypt [options] key_file message
+// Decrypt a message
+// decrypt [OPTIONS] key_file message
+// key_file: file containing public key
+// OPTIONS:
 // flags:
-// -f [file_name] 
-// specify if message should be saved to file
-// -F
-// message comes from file, otherwise will be string
-// -h
-// show help for this command
+// -f [file_name] specify if message should be saved to file
+// -F 'message' parameter comes from file
+// -k [private | public] if key for decryption is private or public (default is private)
+// -h display help message for this command
 //
 // Note: file_header should contain information about the key that was used to encrypt
 struct DecryptConfig {

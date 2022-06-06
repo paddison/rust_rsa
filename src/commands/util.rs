@@ -1,5 +1,3 @@
-use std::{collections::HashMap, fs::File, io::Read};
-use num_cpus;
 use chrono::{self, Datelike, Timelike};
 
 use crate::parser::{parser::{OptParser, ParseFlagError}, opt::ParsedOpt};

@@ -15,7 +15,7 @@ use crate::prime_gen::sieve_of_eratosthenes::Sieve;
 const SEPARATOR: &str = "\n=======\n";
 
 pub trait RsaKey {
-    fn from_file(file_name: String) -> std::io::Result<Self> where Self: Sized {
+    fn from_file(file_name: &str) -> std::io::Result<Self> where Self: Sized {
         let mut buffer = String::new();
         let _ = File::open(file_name)?.read_to_string(&mut buffer)?;
         let key = Self::deserialize(buffer);
@@ -116,8 +116,8 @@ impl RsaKey for RsaPublicKey {
 
     fn get_parts(&self) -> Vec<&Integer> {
         let mut parts = vec![];
-        parts[0] = &self.e;
-        parts[1] = &self.n;
+        parts.push(&self.e);
+        parts.push(&self.n);
 
         parts
     }
@@ -255,4 +255,10 @@ fn test_bit() {
     let n = Integer::from(0b0011);
     assert!(n.get_bit(0));
     assert!(!n.get_bit(3));
+}
+
+#[test]
+fn generate_key_pair_and_serialize() {
+    let (_, pk) = generate_key_pair(1024, num_cpus::get_physical());
+    pk.serialize();
 }
