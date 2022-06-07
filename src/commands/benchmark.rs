@@ -5,7 +5,7 @@ use std::io::Write;
 use std::{collections::HashMap, time};
 use crate::key_gen;
 
-use super::util::{Configuration, InitConfigError, self};
+use super::util::{InitConfigError, self};
 
 type Result<T> = std::result::Result<T, InitConfigError>;
 
@@ -60,7 +60,7 @@ impl BenchmarkConfig {
         ];
 
         let parser = OptParser::new(args, expected);
-        let found_opts = Self::consume_parser(parser)?;
+        let found_opts = parser.consume()?;
 
         // Go through found options and create config accordingly
         let mut bit_sizes = vec![2048];
@@ -113,7 +113,7 @@ impl BenchmarkConfig {
                 return Err(InitConfigError { msg: format!("Unable to parse bit size: {}", size )});
             }
             let n = size.parse::<u32>().unwrap();
-            if !Self::is_valid_bit_size(n) {
+            if !util::is_valid_bit_size(n) {
                 return Err(InitConfigError { msg: format!("Invalid bit size: {}, needs to be in range of 128 to 8192 and power of 2.", n)});
             }
             parsed_sizes.push(n);
@@ -139,18 +139,18 @@ impl BenchmarkConfig {
     }
 }
 
-impl Configuration for BenchmarkConfig {
-    fn get_help_message() -> String {
-        "Usage:\n\n\
-        benchmark [OPTIONS]\n\n\
-        OPTIONS:\n\
-        -s, --size <1024 2048 ...> size of keys to be used, from 128 to 8192, 1204 and 2048 if empty\n\
-        -t, --threads <1 2 3 ...> number of threads to be used, num cpus if empty\n\
-        -f, --file <file_name> save results to a file, bm.txt if empty\n\
-        -h, --help print help for this command\n\
-        -r, --repeats number of repeats, defaults to 5".to_string()
-    }
+// impl Configuration for BenchmarkConfig {
+fn get_help_message() -> String {
+    "Usage:\n\n\
+    benchmark [OPTIONS]\n\n\
+    OPTIONS:\n\
+    -s, --size <1024 2048 ...> size of keys to be used, from 128 to 8192, 1204 and 2048 if empty\n\
+    -t, --threads <1 2 3 ...> number of threads to be used, num cpus if empty\n\
+    -f, --file <file_name> save results to a file, bm.txt if empty\n\
+    -h, --help print help for this command\n\
+    -r, --repeats number of repeats, defaults to 5".to_string()
 }
+// }
 
 // runs the benchmark
 // results are stored in a hash map of the form <bitsize, vec(n_threads, time)>
@@ -193,7 +193,7 @@ fn write_results_to_file(results: &str, file_name: &str) -> std::io::Result<()> 
 pub fn run(config: BenchmarkConfig) {
     // print help always stops program
     if config.print_help {
-        println!("{}", BenchmarkConfig::get_help_message());
+        println!("{}", get_help_message());
         return;
     }
     let benchmark_results = benchmark_threads(config.repeats, &config.n_threads, &config.bit_sizes);

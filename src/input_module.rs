@@ -47,3 +47,10 @@ fn test_number_to_string() {
     println!("{:?}", n); 
     println!("{:?}", number_to_string(n));
 }
+
+#[test]
+fn test_number_to_string_2() {
+    let n = Integer::parse("644676918490704224893746076702864758815769362018048444027513970491065913879320857727963628610186314853493450087587915128223179999006733731225350994123001866792969966398401700200");
+    let n = n.unwrap().complete();
+    let s = number_to_string(n).unwrap();
+}

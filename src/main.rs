@@ -82,9 +82,9 @@ fn do_generate(args: &[String]) {
 // -h
 // show help for this command
 fn do_encrypt(args: &[String]) {
-    let config = encrypt::EncryptConfig::init(args);
+    let config = crypto::CryptoConfig::init(args, true);
     match config {
-        Ok(config) => encrypt::run(config),
+        Ok(config) => crypto::encrypt::run(config),
         Err(e) => eprintln!("{}", e.get_msg()),
     }
 }
@@ -101,7 +101,11 @@ fn do_encrypt(args: &[String]) {
 //
 // Note: file_header should contain information about the key that was used to encrypt
 fn do_decrypt(args: &[String]) {
-
+    let config = crypto::CryptoConfig::init(args, false);
+    match config {
+        Ok(config) => crypto::decrypt::run(config),
+        Err(e) => eprintln!("{}", e.get_msg()),
+    }
 }
 
 // Print possible commands

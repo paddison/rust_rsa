@@ -49,7 +49,7 @@ impl GenerateConfig {
 
         // get parser and get all opts
         let parser = OptParser::new(args, expected);
-        let found_opts = Self::consume_parser(parser)?;
+        let found_opts = parser.consume()?;
 
         // set default values
         let mut size = 2048;
@@ -79,7 +79,7 @@ impl GenerateConfig {
     fn parse_bit_size(size: String) -> Result<u32> {
         match size.parse::<u32>() {
             Ok(n) => {
-                if Self::is_valid_bit_size(n) {
+                if util::is_valid_bit_size(n) {
                     Ok(n)
                 } else {
                     Err(InitConfigError{ msg: format!("Invalid key size: {}", n)})
@@ -91,20 +91,19 @@ impl GenerateConfig {
 
 }
 
-impl Configuration for GenerateConfig {
-    fn get_help_message() -> String {
-        "Usage:\n\n\
-        generate [OPTIONS]\n\n\
-        OPTIONS:\n\
-        -s, --size n specify length n of key in bits, only powers of 2 permitted\n\
-        -f, --file file_name save keypair to file, if file_name is empty, create file with name = creation date\n\
-        -h, --help display help message for this command".to_string()
-    }
+fn get_help_message() -> String {
+    "Usage:\n\n\
+    generate [OPTIONS]\n\n\
+    OPTIONS:\n\
+    -s, --size n specify length n of key in bits, only powers of 2 permitted\n\
+    -f, --file file_name save keypair to file, if file_name is empty, create file with name = creation date\n\
+    -h, --help display help message for this command".to_string()
 }
+
 
 pub fn run(config: GenerateConfig) {
     if config.print_help {
-        return println!("{}", GenerateConfig::get_help_message());
+        return println!("{}", get_help_message());
     }
     println!("Generating {} bit key pair...", config.size);
     let (sk, pk) = key_gen::generate_key_pair(config.size, num_cpus::get_physical());    

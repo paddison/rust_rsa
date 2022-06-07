@@ -1,7 +1,11 @@
 
+use crate::commands::util::InitConfigError;
+
 use super::opt::{ParsedOpt, FlagType, OptDescriptor, self};
 
 type Result<T> = std::result::Result<T, ParseFlagError>;
+type ConfigResult<T> = std::result::Result<T, InitConfigError>;
+
 
 #[derive(Debug)]
 pub enum ParseFlagError {
@@ -130,6 +134,27 @@ impl<'args> OptParser<'args> {
         }
         self.args_index += i;
     }
+
+    // consumes the parser, returning all found options
+    pub fn consume(mut self) -> ConfigResult<Vec<ParsedOpt>> {
+        let mut found_opts = vec![];
+
+        while let Some(result) = self.next() {
+            match result {
+                Ok(found_opt) => found_opts.push(found_opt),
+                Err(e) => {
+                    let msg = match e {
+                        ParseFlagError::ArgRequired(flag) => format!("No arguments provided for: {}", flag),
+                        ParseFlagError::InvalidOpt(flag) => format!("Invalid option: {}", flag),
+                    };
+                    return Err(InitConfigError { msg });
+                }, 
+            }
+        }
+
+        Ok(found_opts)
+    }
+
 }
 
 impl<'args> Iterator for OptParser<'args> {
